@@ -7,7 +7,29 @@ class P2PAudioCall {
         this.remoteAudio = null;
         
         this.debug('🚀 Инициализация P2P аудио звонка...');
+        this.initializeEventListeners();
         this.checkWebRTCSupport();
+    }
+
+    initializeEventListeners() {
+        // Кнопки
+        document.getElementById('createCallBtn').addEventListener('click', () => this.createCall());
+        document.getElementById('copyOfferBtn').addEventListener('click', () => this.copyOffer());
+        document.getElementById('copyAnswerBtn').addEventListener('click', () => this.copyAnswer());
+        document.getElementById('processInputBtn').addEventListener('click', () => this.processDirectInput());
+        document.getElementById('startAudioBtn').addEventListener('click', () => this.startAudio());
+        document.getElementById('endCallBtn').addEventListener('click', () => this.endCall());
+        document.getElementById('testMicBtn').addEventListener('click', () => this.testLocalAudio());
+        document.getElementById('testSpeakerBtn').addEventListener('click', () => this.testRemoteAudio());
+        
+        // Тестовые кнопки
+        document.getElementById('simulateAnswerBtn').addEventListener('click', () => this.simulateReceivedAnswer());
+        document.getElementById('simulateAcceptBtn').addEventListener('click', () => this.simulateAcceptCall());
+        
+        // Enter в поле ввода
+        document.getElementById('directInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.processDirectInput();
+        });
     }
 
     checkWebRTCSupport() {
@@ -30,18 +52,27 @@ class P2PAudioCall {
 
     updateStatus(message, type) {
         const statusDiv = document.getElementById('status');
-        statusDiv.textContent = message;
-        statusDiv.className = `status ${type}`;
+        if (statusDiv) {
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
     }
 
     showStep(stepNumber) {
         // Скрываем все шаги
         for (let i = 1; i <= 3; i++) {
-            document.getElementById(`step${i}`).classList.add('hidden');
+            const step = document.getElementById(`step${i}`);
+            if (step) step.classList.add('hidden');
         }
+        
+        // Скрываем controls
+        const controls = document.getElementById('callControls');
+        if (controls) controls.classList.add('hidden');
+        
         // Показываем нужный шаг
         if (stepNumber) {
-            document.getElementById(`step${stepNumber}`).classList.remove('hidden');
+            const step = document.getElementById(`step${stepNumber}`);
+            if (step) step.classList.remove('hidden');
         }
     }
 
@@ -87,8 +118,11 @@ class P2PAudioCall {
                 caller: true
             };
 
-            const offerString = JSON.stringify(offerData);
-            document.getElementById('offerCode').textContent = offerString;
+            const offerString = JSON.stringify(offerData, null, 2);
+            const offerCode = document.getElementById('offerCode');
+            if (offerCode) {
+                offerCode.textContent = offerString;
+            }
             
             this.isCaller = true;
             this.showStep(2);
@@ -150,8 +184,11 @@ class P2PAudioCall {
                 caller: false
             };
 
-            const answerString = JSON.stringify(answerData);
-            document.getElementById('answerCode').textContent = answerString;
+            const answerString = JSON.stringify(answerData, null, 2);
+            const answerCode = document.getElementById('answerCode');
+            if (answerCode) {
+                answerCode.textContent = answerString;
+            }
             
             this.isCaller = false;
             this.showStep(3);
@@ -176,7 +213,10 @@ class P2PAudioCall {
             this.debug('✅ Answer установлен');
 
             this.showStep(null);
-            document.getElementById('callControls').classList.remove('hidden');
+            const controls = document.getElementById('callControls');
+            if (controls) {
+                controls.classList.remove('hidden');
+            }
 
         } catch (error) {
             this.debug(`❌ Ошибка обработки answer: ${error.message}`);
@@ -241,10 +281,6 @@ class P2PAudioCall {
             }
         };
 
-        this.peerConnection.oniceconnectionstatechange = () => {
-            this.debug(`🧊 ICE состояние: ${this.peerConnection.iceConnectionState}`);
-        };
-
         this.debug('✅ PeerConnection создан');
     }
 
@@ -272,6 +308,122 @@ class P2PAudioCall {
         document.body.appendChild(this.remoteAudio);
     }
 
+    async copyOffer() {
+        const offerCode = document.getElementById('offerCode');
+        if (!offerCode) return;
+        
+        const text = offerCode.textContent;
+        if (!text || text === 'Здесь появится код...') {
+            alert('Сначала создайте звонок!');
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(text);
+            this.debug('📋 Offer скопирован в буфер обмена');
+            alert('Код скопирован! Отправьте его собеседнику.');
+        } catch (error) {
+            this.debug('❌ Ошибка копирования: ' + error.message);
+            // Fallback для старых браузеров
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            this.debug('📋 Offer скопирован (fallback)');
+            alert('Код скопирован! Отправьте его собеседнику.');
+        }
+    }
+
+    async copyAnswer() {
+        const answerCode = document.getElementById('answerCode');
+        if (!answerCode) return;
+        
+        const text = answerCode.textContent;
+        if (!text || text === 'Здесь появится ответ...') {
+            alert('Сначала примите звонок!');
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(text);
+            this.debug('📋 Answer скопирован в буфер обмена');
+            alert('Ответ скопирован! Отправьте его обратно звонящему.');
+        } catch (error) {
+            this.debug('❌ Ошибка копирования: ' + error.message);
+            // Fallback
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            this.debug('📋 Answer скопирован (fallback)');
+            alert('Ответ скопирован! Отправьте его обратно звонящему.');
+        }
+    }
+
+    processDirectInput() {
+        const input = document.getElementById('directInput');
+        if (!input) return;
+        
+        const inputText = input.value.trim();
+        if (!inputText) {
+            alert('Введите код офера или ответа');
+            return;
+        }
+
+        try {
+            const data = JSON.parse(inputText);
+            
+            if (data.type === 'offer' && !this.isCaller) {
+                this.acceptCall(inputText);
+            } else if (data.type === 'answer' && this.isCaller) {
+                this.processAnswer(inputText);
+            } else {
+                alert('Неверный тип кода или состояние звонка');
+            }
+        } catch (error) {
+            alert('Неверный формат кода: ' + error.message);
+        }
+    }
+
+    // Тестовые функции для демонстрации
+    simulateReceivedAnswer() {
+        const answerCode = document.getElementById('answerCode');
+        if (!answerCode) return;
+        
+        const answerText = answerCode.textContent;
+        if (answerText && answerText !== 'Здесь появится ответ...' && this.isCaller) {
+            const input = document.getElementById('directInput');
+            if (input) {
+                input.value = answerText;
+                this.debug('🧪 Тест: Answer вставлен в поле ввода');
+                setTimeout(() => this.processDirectInput(), 1000);
+            }
+        } else {
+            alert('Сначала создайте звонок и получите ответ!');
+        }
+    }
+
+    simulateAcceptCall() {
+        const offerCode = document.getElementById('offerCode');
+        if (!offerCode) return;
+        
+        const offerText = offerCode.textContent;
+        if (offerText && offerText !== 'Здесь появится код...' && !this.isCaller) {
+            const input = document.getElementById('directInput');
+            if (input) {
+                input.value = offerText;
+                this.debug('🧪 Тест: Offer вставлен в поле ввода');
+                setTimeout(() => this.processDirectInput(), 1000);
+            }
+        } else {
+            alert('Сначала примите звонок!');
+        }
+    }
+
     startAudio() {
         this.debug('🔊 Звук включен');
         if (this.remoteAudio) {
@@ -281,9 +433,14 @@ class P2PAudioCall {
 
     async testLocalAudio() {
         try {
+            if (!this.localStream) {
+                alert('Сначала начните звонок!');
+                return;
+            }
+
             const testAudio = new Audio();
             testAudio.srcObject = this.localStream;
-            testAudio.volume = 0.1; // Тише чтобы не было feedback
+            testAudio.volume = 0.1;
             await testAudio.play();
             this.debug('🎵 Тест микрофона: ВАШ голос слышен в динамиках');
             setTimeout(() => {
@@ -337,93 +494,24 @@ class P2PAudioCall {
         
         this.updateStatus('Отключен', 'disconnected');
         this.showStep(1);
-        document.getElementById('callControls').classList.add('hidden');
-        document.getElementById('directInput').value = '';
+        
+        const controls = document.getElementById('callControls');
+        if (controls) controls.classList.add('hidden');
+        
+        const input = document.getElementById('directInput');
+        if (input) input.value = '';
         
         this.debug('📞 Звонок завершен');
+        
+        // Сбрасываем состояние
+        this.isCaller = false;
+        this.localStream = null;
+        this.remoteStream = null;
+        this.peerConnection = null;
     }
 }
-
-// Глобальные переменные
-let p2pCall;
 
 // Инициализация при загрузке
 document.addEventListener('DOMContentLoaded', () => {
-    p2pCall = new P2PAudioCall();
+    window.p2pCall = new P2PAudioCall();
 });
-
-// Глобальные функции для кнопок
-function createCall() {
-    if (p2pCall) p2pCall.createCall();
-}
-
-async function copyOffer() {
-    const offerCode = document.getElementById('offerCode').textContent;
-    try {
-        await navigator.clipboard.writeText(offerCode);
-        p2pCall.debug('📋 Offer скопирован в буфер обмена');
-        alert('Код скопирован! Отправьте его собеседнику.');
-    } catch (error) {
-        p2pCall.debug('❌ Ошибка копирования: ' + error.message);
-    }
-}
-
-async function copyAnswer() {
-    const answerCode = document.getElementById('answerCode').textContent;
-    try {
-        await navigator.clipboard.writeText(answerCode);
-        p2pCall.debug('📋 Answer скопирован в буфер обмена');
-        alert('Ответ скопирован! Отправьте его обратно звонящему.');
-    } catch (error) {
-        p2pCall.debug('❌ Ошибка копирования: ' + error.message);
-    }
-}
-
-function processDirectInput() {
-    const input = document.getElementById('directInput').value.trim();
-    if (!input) {
-        alert('Введите код офера или ответа');
-        return;
-    }
-
-    try {
-        const data = JSON.parse(input);
-        
-        if (data.type === 'offer' && !p2pCall.isCaller) {
-            p2pCall.acceptCall(input);
-        } else if (data.type === 'answer' && p2pCall.isCaller) {
-            p2pCall.processAnswer(input);
-        } else {
-            alert('Неверный тип кода или состояние звонка');
-        }
-    } catch (error) {
-        alert('Неверный формат кода: ' + error.message);
-    }
-}
-
-// Тестовые функции для демонстрации
-function simulateReceivedAnswer() {
-    const answerCode = document.getElementById('answerCode').textContent;
-    if (answerCode && p2pCall.isCaller) {
-        document.getElementById('directInput').value = answerCode;
-        p2pCall.debug('🧪 Тест: Answer вставлен в поле ввода');
-        setTimeout(() => processDirectInput(), 1000);
-    }
-}
-
-function simulateAcceptCall() {
-    const offerCode = document.getElementById('offerCode').textContent;
-    if (offerCode && !p2pCall.isCaller) {
-        document.getElementById('directInput').value = offerCode;
-        p2pCall.debug('🧪 Тест: Offer вставлен в поле ввода');
-        setTimeout(() => processDirectInput(), 1000);
-    }
-}
-
-function startAudio() {
-    if (p2pCall) p2pCall.startAudio();
-}
-
-function endCall() {
-    if (p2pCall) p2pCall.endCall();
-}
