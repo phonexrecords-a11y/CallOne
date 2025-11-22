@@ -12,210 +12,102 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            padding: 20px;
             display: flex;
             justify-content: center;
             align-items: center;
-            padding: 20px;
         }
 
         .container {
             background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            padding: 40px;
+            border-radius: 15px;
+            padding: 30px;
             max-width: 500px;
             width: 100%;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
 
-        .header {
+        h1 {
             text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .header h1 {
+            margin-bottom: 20px;
             color: #333;
-            margin-bottom: 10px;
-            font-size: 28px;
         }
 
-        .security-badge {
-            display: inline-flex;
-            align-items: center;
-            background: #4CAF50;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            margin-top: 10px;
-        }
-
-        .security-badge::before {
-            content: "🔒";
-            margin-right: 8px;
-        }
-
-        .connection-status {
-            padding: 12px;
-            border-radius: 10px;
-            margin-bottom: 20px;
+        .status {
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
             text-align: center;
-            font-weight: 500;
+            font-weight: bold;
         }
 
-        .status-disconnected {
-            background: #ffebee;
-            color: #c62828;
-            border: 1px solid #ffcdd2;
-        }
-
-        .status-connecting {
-            background: #fff3e0;
-            color: #ef6c00;
-            border: 1px solid #ffe0b2;
-        }
-
-        .status-connected {
-            background: #e8f5e8;
-            color: #2e7d32;
-            border: 1px solid #c8e6c9;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #555;
-        }
-
-        input, button {
-            width: 100%;
-            padding: 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 16px;
-            transition: all 0.3s ease;
-        }
-
-        input:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
+        .disconnected { background: #ffebee; color: #c62828; }
+        .connected { background: #e8f5e8; color: #2e7d32; }
+        .calling { background: #fff3e0; color: #ef6c00; }
 
         button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
             border: none;
+            border-radius: 8px;
+            background: #667eea;
+            color: white;
+            font-size: 16px;
             cursor: pointer;
-            font-weight: 600;
-            margin-top: 10px;
         }
 
         button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+            background: #5a6fd8;
         }
 
         button:disabled {
             background: #ccc;
             cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        .call-controls {
-            display: none;
-            text-align: center;
-            margin-top: 30px;
         }
 
         .call-btn {
-            padding: 20px;
-            font-size: 18px;
-            margin: 10px 0;
+            background: #4CAF50;
         }
 
-        .call-active {
+        .end-btn {
             background: #f44336;
         }
 
-        .audio-container {
-            margin: 20px 0;
-            padding: 20px;
-            background: #f5f5f5;
-            border-radius: 10px;
-            text-align: center;
-        }
-
-        .peer-info {
-            background: #e3f2fd;
+        .debug {
+            margin-top: 20px;
             padding: 15px;
-            border-radius: 10px;
-            margin: 15px 0;
-            text-align: center;
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 20px;
-                margin: 10px;
-            }
-            
-            body {
-                padding: 10px;
-            }
+            background: #f5f5f5;
+            border-radius: 8px;
+            font-size: 12px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>Secure P2P Audio Call</h1>
-            <div class="security-badge">End-to-End Encrypted</div>
+        <h1>🔒 P2P Audio Call</h1>
+        
+        <div id="status" class="status disconnected">
+            Отключен
         </div>
 
-        <div id="connectionStatus" class="connection-status status-disconnected">
-            🔴 Disconnected
+        <div id="setup">
+            <button onclick="createCall()">Создать звонок</button>
+            <input type="text" id="offerInput" placeholder="Введите offer от собеседника" style="width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px;">
+            <button onclick="acceptCall()">Принять звонок</button>
         </div>
 
-        <div id="setupSection">
-            <div class="form-group">
-                <label for="localId">Your ID:</label>
-                <input type="text" id="localId" readonly>
-                <button onclick="copyLocalId()">Copy My ID</button>
-            </div>
-
-            <div class="form-group">
-                <label for="remoteId">Peer ID to connect:</label>
-                <input type="text" id="remoteId" placeholder="Enter peer's ID">
-            </div>
-
-            <button onclick="initializeConnection()" id="connectBtn">Start Secure Connection</button>
+        <div id="callControls" style="display: none;">
+            <button class="call-btn" onclick="startAudio()">🎤 Включить звук</button>
+            <button class="end-btn" onclick="endCall()">📞 Завершить звонок</button>
         </div>
 
-        <div id="callSection" class="call-controls">
-            <div class="peer-info" id="peerInfo">
-                Connected to: <span id="peerIdDisplay"></span>
-            </div>
-            
-            <div class="audio-container">
-                <h3>🔊 Audio Status</h3>
-                <div id="audioStatus">Microphone: Ready</div>
-            </div>
-
-            <button onclick="startCall()" id="startCallBtn" class="call-btn">📞 Start Audio Call</button>
-            <button onclick="endCall()" id="endCallBtn" class="call-btn call-active" style="display: none;">📞 End Call</button>
-            
-            <div class="form-group">
-                <button onclick="copyConnectionLink()">📋 Copy Invitation Link</button>
-            </div>
+        <div class="debug">
+            <strong>Отладочная информация:</strong>
+            <div id="debug"></div>
         </div>
     </div>
 
