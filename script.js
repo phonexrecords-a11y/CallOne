@@ -1,109 +1,243 @@
-// Функции диагностики
-async function runAudioDiagnostics() {
-    const results = document.getElementById('diagnosticResults');
-    results.innerHTML = '<div>🔄 Запускаем диагностику...</div>';
-    
-    const checks = [
-        { name: 'WebRTC поддержка', check: checkWebRTCSupport },
-        { name: 'Микрофон', check: checkMicrophoneAccess },
-        { name: 'Аудио выход', check: checkAudioOutput },
-        { name: 'Авто-воспроизведение', check: checkAutoplay }
-    ];
-    
-    for (const check of checks) {
+class P2PAudioCall {
+    constructor() {
+        this.localStream = null;
+        this.remoteStream = null;
+        this.peerConnection = null;
+        this.isCaller = false;
+        
+        this.debug('Инициализация P2P аудио звонка...');
+    }
+
+    debug(message) {
+        const debugDiv = document.getElementById('debug');
+        debugDiv.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
+        console.log(message);
+    }
+
+    updateStatus(message, type) {
+        const statusDiv = document.getElementById('status');
+        statusDiv.textContent = message;
+        statusDiv.className = `status ${type}`;
+    }
+
+    async createCall() {
         try {
-            const result = await check.check();
-            results.innerHTML += `<div style="color: green;">✅ ${check.name}: ${result}</div>`;
-        } catch (error) {
-            results.innerHTML += `<div style="color: red;">❌ ${check.name}: ${error.message}</div>`;
-        }
-        await new Promise(resolve => setTimeout(resolve, 500));
-    }
-}
-
-async function checkWebRTCSupport() {
-    if (!window.RTCPeerConnection) throw new Error('Не поддерживается');
-    return 'Поддерживается';
-}
-
-async function checkMicrophoneAccess() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(track => track.stop());
-        return 'Доступ разрешен';
-    } catch (error) {
-        throw new Error('Доступ запрещен: ' + error.message);
-    }
-}
-
-async function checkAudioOutput() {
-    return new Promise((resolve) => {
-        const audio = new Audio();
-        audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
-        audio.volume = 0.1;
-        audio.oncanplay = () => resolve('Работает');
-        audio.onerror = () => resolve('Возможны проблемы');
-        audio.play().catch(() => resolve('Авто-воспроизведение ограничено'));
-    });
-}
-
-async function checkAutoplay() {
-    const audio = new Audio();
-    audio.volume = 0;
-    try {
-        await audio.play();
-        return 'Разрешено';
-    } catch {
-        return 'Ограничено (требуется действие пользователя)';
-    }
-}
-
-async function testMicrophone() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const audioContext = new AudioContext();
-        const source = audioContext.createMediaStreamSource(stream);
-        const analyser = audioContext.createAnalyser();
-        
-        source.connect(analyser);
-        
-        const results = document.getElementById('diagnosticResults');
-        results.innerHTML = '<div>🎤 Говорите в микрофон... Индикатор должен меняться:</div>';
-        
-        const checkVolume = () => {
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            analyser.getByteFrequencyData(dataArray);
-            const volume = Math.round((dataArray[0] / 255) * 100);
-            results.innerHTML = `<div>🎤 Уровень звука: ${volume}% ${'█'.repeat(Math.floor(volume / 10))}</div>`;
+            this.debug('Создание звонка...');
+            this.updateStatus('Получаем доступ к микрофону...', 'calling');
             
-            if (volume > 5) {
-                setTimeout(() => {
-                    stream.getTracks().forEach(track => track.stop());
-                    results.innerHTML += '<div style="color: green;">✅ Микрофон работает нормально</div>';
-                }, 2000);
-            } else {
-                setTimeout(checkVolume, 100);
+            // Получаем доступ к микрофону
+            this.localStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                },
+                video: false
+            });
+            
+            this.debug('✅ Микрофон доступен');
+            this.updateStatus('Создаем P2P соединение...', 'calling');
+            
+            // Создаем PeerConnection
+            await this.createPeerConnection();
+            
+            // Создаем офер
+            const offer = await this.peerConnection.createOffer();
+            await this.peerConnection.setLocalDescription(offer);
+            
+            this.debug('✅ Offer создан');
+            this.updateStatus('Отправьте этот код собеседнику:', 'calling');
+            
+            // Показываем офер для копирования
+            const offerString = JSON.stringify(offer);
+            document.getElementById('offerInput').value = offerString;
+            
+            this.isCaller = true;
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('callControls').style.display = 'block';
+            
+            this.debug('Ожидаем ответ от собеседника...');
+            
+        } catch (error) {
+            this.debug(`❌ Ошибка: ${error}`);
+            this.updateStatus('Ошибка создания звонка', 'disconnected');
+        }
+    }
+
+    async acceptCall() {
+        try {
+            const offerString = document.getElementById('offerInput').value;
+            if (!offerString) {
+                alert('Введите offer от собеседника');
+                return;
+            }
+
+            this.debug('Принимаем звонок...');
+            this.updateStatus('Подключаемся...', 'calling');
+            
+            // Получаем доступ к микрофону
+            this.localStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                },
+                video: false
+            });
+            
+            this.debug('✅ Микрофон доступен');
+            
+            // Создаем PeerConnection
+            await this.createPeerConnection();
+            
+            // Устанавливаем удаленный офер
+            const offer = JSON.parse(offerString);
+            await this.peerConnection.setRemoteDescription(offer);
+            
+            // Создаем ответ
+            const answer = await this.peerConnection.createAnswer();
+            await this.peerConnection.setLocalDescription(answer);
+            
+            this.debug('✅ Answer создан');
+            this.updateStatus('Отправьте этот код обратно:', 'calling');
+            
+            // Показываем answer для копирования
+            document.getElementById('offerInput').value = JSON.stringify(answer);
+            
+            this.isCaller = false;
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('callControls').style.display = 'block';
+            
+        } catch (error) {
+            this.debug(`❌ Ошибка: ${error}`);
+            this.updateStatus('Ошибка подключения', 'disconnected');
+        }
+    }
+
+    async createPeerConnection() {
+        // Конфигурация STUN серверов
+        const configuration = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
+            ]
+        };
+
+        this.peerConnection = new RTCPeerConnection(configuration);
+        
+        // Добавляем локальные треки
+        this.localStream.getTracks().forEach(track => {
+            this.peerConnection.addTrack(track, this.localStream);
+        });
+
+        // Обрабатываем удаленные треки
+        this.peerConnection.ontrack = (event) => {
+            this.debug('✅ Получен удаленный аудио поток');
+            this.remoteStream = event.streams[0];
+            this.setupRemoteAudio();
+        };
+
+        // Обрабатываем ICE кандидаты
+        this.peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                this.debug('Новый ICE кандидат');
             }
         };
+
+        // Отслеживаем состояние соединения
+        this.peerConnection.onconnectionstatechange = () => {
+            this.debug(`Состояние соединения: ${this.peerConnection.connectionState}`);
+            
+            switch (this.peerConnection.connectionState) {
+                case 'connected':
+                    this.updateStatus('✅ Соединение установлено! Говорите!', 'connected');
+                    this.debug('🎉 P2P аудио звонок активен!');
+                    break;
+                case 'disconnected':
+                    this.updateStatus('❌ Соединение разорвано', 'disconnected');
+                    break;
+                case 'failed':
+                    this.updateStatus('❌ Ошибка соединения', 'disconnected');
+                    break;
+            }
+        };
+
+        this.debug('✅ PeerConnection создан');
+    }
+
+    setupRemoteAudio() {
+        if (!this.remoteStream) {
+            this.debug('❌ Нет удаленного потока');
+            return;
+        }
+
+        // Создаем аудио элемент для удаленного звука
+        const remoteAudio = new Audio();
+        remoteAudio.srcObject = this.remoteStream;
+        remoteAudio.autoplay = true;
         
-        checkVolume();
+        // Пытаемся воспроизвести
+        remoteAudio.play().then(() => {
+            this.debug('✅ Удаленный звук воспроизводится');
+        }).catch(error => {
+            this.debug(`❌ Ошибка воспроизведения: ${error}`);
+        });
+
+        // Добавляем в DOM (скрыто)
+        remoteAudio.style.display = 'none';
+        document.body.appendChild(remoteAudio);
+    }
+
+    startAudio() {
+        this.debug('🔊 Звук включен');
+        // Звук уже включен через autoplay
+    }
+
+    endCall() {
+        this.debug('Завершаем звонок...');
         
-    } catch (error) {
-        document.getElementById('diagnosticResults').innerHTML = 
-            `<div style="color: red;">❌ Ошибка микрофона: ${error.message}</div>`;
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(track => track.stop());
+        }
+        
+        if (this.peerConnection) {
+            this.peerConnection.close();
+        }
+        
+        // Очищаем DOM
+        document.querySelectorAll('audio').forEach(audio => audio.remove());
+        
+        this.updateStatus('Отключен', 'disconnected');
+        document.getElementById('setup').style.display = 'block';
+        document.getElementById('callControls').style.display = 'none';
+        document.getElementById('offerInput').value = '';
+        
+        this.debug('📞 Звонок завершен');
     }
 }
 
-function testAudioPlayback() {
-    const audio = new Audio();
-    audio.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==";
-    audio.volume = 0.1;
-    
-    audio.play().then(() => {
-        document.getElementById('diagnosticResults').innerHTML = 
-            '<div style="color: green;">✅ Воспроизведение звука работает</div>';
-    }).catch(error => {
-        document.getElementById('diagnosticResults').innerHTML = 
-            `<div style="color: red;">❌ Ошибка воспроизведения: ${error.message}</div>`;
-    });
+// Глобальные переменные
+let p2pCall;
+
+// Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', () => {
+    p2pCall = new P2PAudioCall();
+});
+
+// Глобальные функции для кнопок
+function createCall() {
+    if (p2pCall) p2pCall.createCall();
+}
+
+function acceptCall() {
+    if (p2pCall) p2pCall.acceptCall();
+}
+
+function startAudio() {
+    if (p2pCall) p2pCall.startAudio();
+}
+
+function endCall() {
+    if (p2pCall) p2pCall.endCall();
 }
