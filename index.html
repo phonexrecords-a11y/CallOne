@@ -110,6 +110,17 @@
             border-left: 4px solid #667eea;
             background: #f8f9fa;
         }
+
+        .test-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .test-buttons button {
+            flex: 1;
+            background: #ff9800;
+        }
     </style>
 </head>
 <body>
@@ -124,7 +135,7 @@
         <div id="step1">
             <div class="step">
                 <h3>Шаг 1: Создать звонок</h3>
-                <button onclick="createCall()">Создать звонок</button>
+                <button id="createCallBtn">Создать звонок</button>
             </div>
         </div>
 
@@ -132,9 +143,11 @@
         <div id="step2" class="hidden">
             <div class="step">
                 <h3>Шаг 2: Отправьте этот код собеседнику</h3>
-                <div id="offerCode" class="code-box"></div>
-                <button onclick="copyOffer()">📋 Скопировать код</button>
-                <button onclick="simulateReceivedAnswer()">🧪 Тест: Симулировать получение ответа</button>
+                <div id="offerCode" class="code-box">Здесь появится код...</div>
+                <button id="copyOfferBtn">📋 Скопировать код</button>
+                <div class="test-buttons">
+                    <button id="simulateAnswerBtn">🧪 Тест: Симулировать ответ</button>
+                </div>
             </div>
         </div>
 
@@ -142,20 +155,22 @@
         <div id="step3" class="hidden">
             <div class="step">
                 <h3>Шаг 3: Принять звонок</h3>
-                <div id="answerCode" class="code-box"></div>
-                <button onclick="copyAnswer()">📋 Скопировать ответ</button>
-                <button onclick="simulateAcceptCall()">🧪 Тест: Принять звонок</button>
+                <div id="answerCode" class="code-box">Здесь появится ответ...</div>
+                <button id="copyAnswerBtn">📋 Скопировать ответ</button>
+                <div class="test-buttons">
+                    <button id="simulateAcceptBtn">🧪 Тест: Завершить подключение</button>
+                </div>
             </div>
         </div>
 
         <!-- Управление звонком -->
         <div id="callControls" class="hidden">
-            <button class="call-btn" onclick="startAudio()">🎤 Включить звук</button>
-            <button class="end-btn" onclick="endCall()">📞 Завершить звонок</button>
+            <button class="call-btn" id="startAudioBtn">🎤 Включить звук</button>
+            <button class="end-btn" id="endCallBtn">📞 Завершить звонок</button>
             
             <div style="margin-top: 15px;">
-                <button onclick="testLocalAudio()">🎵 Тест микрофона</button>
-                <button onclick="testRemoteAudio()">🔊 Тест динамиков</button>
+                <button id="testMicBtn">🎵 Тест микрофона</button>
+                <button id="testSpeakerBtn">🔊 Тест динамиков</button>
             </div>
         </div>
 
@@ -163,7 +178,7 @@
         <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px;">
             <h3>⚡ Прямое подключение</h3>
             <input type="text" id="directInput" placeholder="Вставьте код офера или ответа" style="width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px;">
-            <button onclick="processDirectInput()">Подключиться</button>
+            <button id="processInputBtn">Подключиться</button>
         </div>
 
         <div class="debug">
